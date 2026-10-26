@@ -8,7 +8,7 @@ It uses whatever you set with `omarchy default agent`, so no agent is hard-coded
 
 ## How it works
 
-- The bar button opens a prompt overlay (`omarchy-shell shell toggle jalcock.ask-agent '{}'`).
+- The bar button opens a prompt overlay (`omarchy-shell shell toggle io.github.jordan-alcock.ask-agent '{}'`).
 - Enter sends the question to your default agent in headless mode and shows the answer as markdown.
 - **Claude Code:** follow-ups resume the same session, and "Open in tiled window"
   (`Ctrl+T`) resumes it in a terminal with `omarchy-launch-tui`.
@@ -22,7 +22,7 @@ Keys: `Enter` send · `Ctrl+T` open in tiled window · `Esc` close.
 
 ```bash
 omarchy plugin add https://github.com/jordan-alcock/Omarchy-Ask-Agent.git --enable
-omarchy bar move jalcock.ask-agent --section center --index 0
+omarchy bar move io.github.jordan-alcock.ask-agent --section center --index 0
 omarchy restart shell
 ```
 
@@ -42,7 +42,7 @@ CLI you already use, and keeps the conversation in memory until you close the bo
 ## Removal
 
 ```bash
-omarchy plugin remove jalcock.ask-agent
+omarchy plugin remove io.github.jordan-alcock.ask-agent
 omarchy restart shell
 ```
 

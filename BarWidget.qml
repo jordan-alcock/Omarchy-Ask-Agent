@@ -3,7 +3,7 @@ import qs.Ui
 
 BarWidget {
   id: root
-  moduleName: "jalcock.ask-agent"
+  moduleName: "io.github.jordan-alcock.ask-agent"
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -16,7 +16,7 @@ BarWidget {
     horizontalMargin: 7.5
     onPressed: function(button) {
       if (!root.bar) return
-      root.bar.run("omarchy-shell shell toggle jalcock.ask-agent '{}'")
+      root.bar.run("omarchy-shell shell toggle io.github.jordan-alcock.ask-agent '{}'")
     }
   }
 }

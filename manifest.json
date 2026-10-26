@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "jalcock.ask-agent",
+  "id": "io.github.jordan-alcock.ask-agent",
   "name": "Ask agent",
   "version": "1.0.0",
-  "author": "jalcock",
+  "author": "jordan-alcock",
   "description": "Type a question in the bar and open the default Omarchy agent with it",
   "kinds": ["overlay", "bar-widget"],
   "keepLoaded": true,

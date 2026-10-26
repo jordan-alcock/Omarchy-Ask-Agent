@@ -86,7 +86,7 @@ Item {
     root.reset()
     root.opened = false
     if (root.shell && typeof root.shell.hide === "function")
-      root.shell.hide((root.manifest && root.manifest.id) || "jalcock.ask-agent")
+      root.shell.hide((root.manifest && root.manifest.id) || "io.github.jordan-alcock.ask-agent")
   }
 
   function toggle() {
