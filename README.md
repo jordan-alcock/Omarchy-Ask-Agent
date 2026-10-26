@@ -1,5 +1,7 @@
 # Ask agent
 
+![Ask agent overlay answering a question, with the agent picker, New chat, Copy answer and Open in tiled window buttons](preview.png)
+
 An "Ask agent…" button for the Omarchy bar. Click it, type a question, and the
 answer appears in a small overlay under the bar. Reply in the same box to keep
 going, or open the conversation in a tiled terminal window.
