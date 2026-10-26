@@ -7,8 +7,8 @@ Ask your AI agent a question without leaving what you are doing. Ask agent adds 
 in a small overlay under the bar. Reply to keep the conversation going, or open it in a
 tiled terminal window.
 
-It uses the agent you have set with `omarchy default agent`, and you can pick a different
-installed agent from a dropdown at any time.
+It uses the agent you have set with `omarchy default agent`. Before a chat starts, two
+menus on the reply box let you pick a different installed agent and the folder it works in.
 
 ## Models
 
@@ -34,8 +34,10 @@ available yet.
 3. Read the answer. Type a reply and press `Enter` to continue.
 4. Press `Ctrl+T` to continue in a tiled terminal window, or `Esc` to close.
 
-Your conversation is kept when you close the box or restart the shell. It is cleared when
-you open a tiled window or start a new chat.
+Your conversation is kept when you close the box. An answer still in progress finishes
+and is there when you open it again. `Ctrl+N` stops that answer and clears the chat.
+Opening a tiled window also clears the overlay history. Restarting the shell stops an
+answer that has not finished yet.
 
 | Key | Action |
 |---|---|
@@ -44,23 +46,24 @@ you open a tiled window or start a new chat.
 | `Ctrl+N` | New chat |
 | `Esc` | Close |
 
-### Choosing an agent
+### Project menu
 
-The dropdown at the right of the reply box lists the agents installed on your machine. It
-defaults to your Omarchy default agent and locks once a chat has started. Start a new chat
-to switch.
+The menu on the left sets the folder the agent works in. It locks once a chat has started.
+Your home directory cannot be the project itself.
 
-### Choosing a project folder
+- **Recent folders** switch back to a folder you used before. Up to eight are kept. They are not deleted.
+- **No project yet** uses a private empty folder at `~/.local/state/omarchy/ask-agent/workspace`. New chat empties it. A folder you picked is left alone.
+- **Choose folder…** opens a folder window. The folder you pick becomes the project.
+- **Create new folder…** opens a folder window for the parent, then asks for a name and creates that folder.
 
-The project menu on the left of the box sets the folder the agent works in:
+Open in a tiled window uses the same folder. There, the agent asks before it acts.
 
-- **Choose folder…** picks an existing folder.
-- **Create new folder…** picks a location, then asks for a name.
-- **No project yet** uses an empty scratch folder, which is deleted when you start a new chat.
-- Recent folders are remembered. A folder you picked is never deleted.
+### Agent menu
 
-Your home directory cannot be used as the project itself. "Open in tiled window" uses the
-same folder and starts the agent with its normal permission prompts.
+The menu on the right picks which installed agent answers. It locks once a chat has started. Start a new chat to switch. With only one agent installed, the name is shown and the menu stays closed.
+
+- **Default (name)** uses the agent from `omarchy default agent`.
+- **An agent name** uses that agent for this chat.
 
 ### Copy and paste
 
@@ -94,6 +97,26 @@ Restart the shell after installing or updating.
 - A default agent, set with `omarchy default agent <name>`
 - At least one of `claude`, `copilot`, `cursor-agent`, `codex`, `gemini` or `opencode`
   installed and signed in
+
+## Outside the plugin
+
+Ask agent does not change your default agent, theme, Hyprland config, other plugins, or
+anything in `/usr/share/omarchy`.
+
+- The install commands add the bar button to `~/.config/omarchy/shell.json`. A keybinding
+  is added only if you edit `bindings.lua` yourself.
+- While the box is open it takes the keyboard, so other windows do not receive keys until
+  you close it. The keyboard goes to the folder window while that window is open.
+- **Copy answer** replaces the Wayland clipboard.
+- Its own files live in `~/.local/state/omarchy/ask-agent` (or under `$XDG_STATE_HOME`),
+  readable only by you. **No project yet** creates a private Git repo in `workspace` and
+  empties that repo when you start a new chat.
+- A folder you pick is not turned into a Git repo, and its permissions are left alone.
+  The agent runs inside it and can change files there, the same as if you started that
+  agent yourself. For that run only, Git is kept from searching above the folder.
+- **Create new folder…** creates the one directory you name.
+- **Open in tiled window** opens a terminal with `omarchy-launch-tui`. In that terminal
+  the agent asks before it acts.
 
 ## Privacy
 
