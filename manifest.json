@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "jalcock.ask-agent",
+  "name": "Ask agent",
+  "version": "1.0.0",
+  "author": "jalcock",
+  "description": "Type a question in the bar and open the default Omarchy agent with it",
+  "kinds": ["overlay", "bar-widget"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "AskAgent.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Ask agent",
+    "description": "Opens a prompt box that sends your question to the default agent",
+    "category": "AI",
+    "allowMultiple": false,
+    "defaultSection": "center"
+  }
+}
