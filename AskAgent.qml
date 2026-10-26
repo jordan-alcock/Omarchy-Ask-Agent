@@ -441,6 +441,7 @@ Item {
             width: answerView.width
             readOnly: true
             selectByMouse: true
+            persistentSelection: true
             textFormat: TextEdit.MarkdownText
             wrapMode: TextEdit.Wrap
             text: root.transcript
@@ -469,12 +470,14 @@ Item {
               } else if (ctrl && event.key === Qt.Key_N) {
                 root.clearConversation()
                 event.accepted = true
-              } else if (ctrl || event.key === Qt.Key_Shift || event.key === Qt.Key_Control) {
-                // Leave Ctrl+C, Ctrl+A and friends to the text itself
-              } else {
-                // Anything else is typing: hand it back to the reply box
+              } else if (ctrl) {
+                // Leave Ctrl+A and friends to the text itself
+              } else if (event.text && event.text.length > 0 && event.text.charCodeAt(0) >= 32) {
+                // Printable typing goes back to the reply box. Modifier-only presses
+                // such as SUPER (the first half of SUPER+C) carry no text and must
+                // not steal focus, or the selection is lost before the copy.
                 input.forceActiveFocus()
-                if (event.text) input.insert(input.cursorPosition, event.text)
+                input.insert(input.cursorPosition, event.text)
                 event.accepted = true
               }
             }
