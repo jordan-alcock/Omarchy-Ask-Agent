@@ -42,14 +42,14 @@ The shell keeps this plugin loaded, so restart it after installing or updating.
 | `claude`, `copilot`, `cursor-agent`, `codex`, `gemini` or `opencode` on `PATH` | headless answers in the overlay |
 
 Your questions go only to the agent CLI you already use. The current conversation is saved,
-unencrypted, to `~/.local/state/omarchy/ask-agent/conversation.json` until you open it in a
-terminal or start a new chat.
+unencrypted, to `$XDG_STATE_HOME/omarchy/ask-agent/conversation.json` (default
+`~/.local/state/…`) until you open it in a terminal or start a new chat. The folder is owner-only (`700`).
 
 ## Removal
 
 ```bash
 omarchy plugin remove io.github.jordan-alcock.ask-agent
-rm -rf ~/.local/state/omarchy/ask-agent   # saved conversation
+rm -rf ~/.local/state/omarchy/ask-agent   # saved conversation (or under $XDG_STATE_HOME)
 omarchy restart shell
 ```
 

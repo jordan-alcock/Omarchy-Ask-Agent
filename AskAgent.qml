@@ -60,7 +60,8 @@ Item {
     })
   }
 
-  readonly property string stateDir: homePath + "/.local/state/omarchy/ask-agent"
+  readonly property string stateHome: Quickshell.env("XDG_STATE_HOME") || (homePath + "/.local/state")
+  readonly property string stateDir: stateHome + "/omarchy/ask-agent"
 
   // The conversation lives here until it is opened in a terminal or cleared, so it
   // survives closing the overlay and restarting the shell.
@@ -230,7 +231,9 @@ Item {
     onLoaded: root.restore(text())
   }
 
-  Component.onCompleted: Quickshell.execDetached(["mkdir", "-p", root.stateDir])
+  // Owner-only: the folder holds the whole conversation. chmod also tightens a
+  // folder an earlier version created with the default mode.
+  Component.onCompleted: Quickshell.execDetached(["sh", "-c", 'mkdir -p "$1" && chmod 700 "$1"', "sh", root.stateDir])
 
   Process {
     id: agentNameProc
