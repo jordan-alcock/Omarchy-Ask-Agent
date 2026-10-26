@@ -19,6 +19,8 @@ It uses whatever you set with `omarchy default agent`, so no agent is hard-coded
 The conversation is kept when you close the box or restart the shell, and cleared when you
 open it in a tiled window or start a new chat.
 
+Select answer text with the mouse and copy it with `Ctrl+C`, or use **Copy answer** for the latest reply. Paste works in the reply box.
+
 Keys: `Enter` send · `Ctrl+T` open in tiled window · `Ctrl+N` new chat · `Esc` close.
 
 ## Install

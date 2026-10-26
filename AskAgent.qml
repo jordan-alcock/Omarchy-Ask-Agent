@@ -192,6 +192,13 @@ Item {
     Qt.callLater(function() { input.forceActiveFocus() })
   }
 
+  // The selection if there is one, otherwise the latest answer.
+  function copyAnswer() {
+    var text = answerText.selectedText
+    if (!text && root.turns.length > 0) text = root.turns[root.turns.length - 1].a
+    if (text) Quickshell.execDetached(["wl-copy", "--", text])
+  }
+
   function scrollToEnd() {
     Qt.callLater(function() {
       answerView.contentY = Math.max(0, answerView.contentHeight - answerView.height)
@@ -305,19 +312,45 @@ Item {
           width: parent.width
           height: root.answerHeight
           contentWidth: width
-          contentHeight: answerText.implicitHeight
+          contentHeight: answerText.contentHeight
           clip: true
           boundsBehavior: Flickable.StopAtBounds
 
-          Text {
+          // Selectable so answers can be copied; Ctrl+C copies the selection.
+          TextEdit {
             id: answerText
             width: answerView.width
-            textFormat: Text.MarkdownText
-            wrapMode: Text.Wrap
+            readOnly: true
+            selectByMouse: true
+            textFormat: TextEdit.MarkdownText
+            wrapMode: TextEdit.Wrap
             text: root.transcript
             color: root.foreground
+            selectionColor: root.foreground
+            selectedTextColor: root.background
             font.family: root.fontFamily
             font.pixelSize: Style.font.title
+
+            Keys.onPressed: function(event) {
+              var ctrl = event.modifiers & Qt.ControlModifier
+              if (event.key === Qt.Key_Escape) {
+                root.dismiss()
+                event.accepted = true
+              } else if (ctrl && event.key === Qt.Key_T) {
+                root.openTiled()
+                event.accepted = true
+              } else if (ctrl && event.key === Qt.Key_N) {
+                root.clearConversation()
+                event.accepted = true
+              } else if (ctrl || event.key === Qt.Key_Shift || event.key === Qt.Key_Control) {
+                // Leave Ctrl+C, Ctrl+A and friends to the text itself
+              } else {
+                // Anything else is typing: hand it back to the reply box
+                input.forceActiveFocus()
+                if (event.text) input.insert(input.cursorPosition, event.text)
+                event.accepted = true
+              }
+            }
           }
         }
 
@@ -395,6 +428,31 @@ Item {
               anchors.fill: parent
               cursorShape: Qt.PointingHandCursor
               onClicked: root.openTiled()
+            }
+          }
+
+          Rectangle {
+            width: copyLabel.implicitWidth + Style.spacing.md * 4
+            height: parent.height
+            radius: root.cornerRadius
+            color: "transparent"
+            border.width: 1
+            border.color: root.border
+
+            Text {
+              id: copyLabel
+              anchors.centerIn: parent
+              textFormat: Text.PlainText
+              text: "Copy answer"
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.title
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.copyAnswer()
             }
           }
 
