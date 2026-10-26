@@ -4,7 +4,7 @@
   "name": "Ask agent",
   "version": "1.0.0",
   "author": "jordan-alcock",
-  "description": "Type a question in the bar and open the default Omarchy agent with it",
+  "description": "Ask your Omarchy agent from the bar: answers in an overlay, replies, or open in a tiled window. Works with Claude, Cursor, Codex and Copilot",
   "kinds": ["overlay", "bar-widget"],
   "keepLoaded": true,
   "entryPoints": {

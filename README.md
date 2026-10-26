@@ -10,10 +10,11 @@ It uses whatever you set with `omarchy default agent`, so no agent is hard-coded
 
 - The bar button opens a prompt overlay (`omarchy-shell shell toggle io.github.jordan-alcock.ask-agent '{}'`).
 - Enter sends the question to your default agent in headless mode and shows the answer as markdown.
+- **Tested:** Claude Code, Cursor CLI, Codex and GitHub Copilot.
 - **Claude Code and GitHub Copilot:** follow-ups resume the same session, and "Open in tiled
-  window" (`Ctrl+T`) resumes it in a terminal with `omarchy-launch-tui`. Both are tested.
-- **Other agents** (`cursor-agent`, `codex`, `gemini`, `opencode`): each follow-up
-  resends the earlier turns in the prompt. These are untested.
+  window" (`Ctrl+T`) resumes it in a terminal with `omarchy-launch-tui`.
+- **Cursor CLI and Codex:** each follow-up resends the earlier turns in the prompt.
+- **Gemini and opencode:** supported the same way as Cursor and Codex, but untested.
 - **Any other default agent:** skips the overlay and runs `omarchy agent prompt "<question>"`.
 
 The conversation is kept when you close the box or restart the shell, and cleared when you
