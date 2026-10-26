@@ -30,6 +30,8 @@ Item {
   property int lookupToken: 0
   property int killToken: 0
   property bool userMutated: false
+  // A question waits here while a cancelled agent or the scratch wipe is still finishing.
+  property bool startQueued: false
   readonly property bool chatting: turns.length > 0
   // The agent picked in the dropdown ("" means the Omarchy default), the default
   // itself, and which of the supported agents are installed.
@@ -130,19 +132,12 @@ Item {
 
   function restore(raw) {
     if (root.userMutated) return
-    try {
-      var data = JSON.parse(raw)
-      var turns = (data.turns || []).map(function(t) {
-        // A turn still waiting when the shell went away will never be answered
-        return t.a === "" ? { q: t.q, a: "(interrupted)", failed: true } : t
-      })
-      root.agent = data.agent || ""
-      root.sessionId = data.sessionId || ""
-      root.sessionStarted = !!data.sessionStarted
-      root.turns = turns
-    } catch (e) {
-      root.turns = []
-    }
+    var saved = Logic.parseConversation(raw)
+    if (!saved) return
+    root.agent = saved.agent
+    root.sessionId = saved.sessionId
+    root.sessionStarted = saved.sessionStarted
+    root.turns = saved.turns
   }
 
   function execCommand(command) {
@@ -161,7 +156,19 @@ Item {
     }
   }
 
+  // True while something from the last chat is still winding down.
+  function busy() {
+    return agentProc.running || wipeProc.running
+  }
+
+  function startIfQueued() {
+    if (!root.startQueued || root.busy()) return
+    root.startQueued = false
+    if (root.phase === "working") root.startAsk()
+  }
+
   function resetConversation(wipeWorkspace) {
+    root.startQueued = false
     root.cancelRun()
     root.lookupToken += 1
     if (agentNameProc.running) agentNameProc.running = false
@@ -172,8 +179,16 @@ Item {
     root.sessionId = ""
     root.sessionStarted = false
     root.agent = ""
-    root.execCommand(Logic.removeConversationCommand(root.stateDir))
-    if (wipeWorkspace) root.execCommand(Logic.wipeWorkspaceCommand(root.workspaceDir))
+    // Overwrite rather than delete: this write is ordered with every later save,
+    // so a quick follow-up question cannot lose its file to a late rm.
+    root.save()
+    if (wipeWorkspace) {
+      var wipe = Logic.wipeWorkspaceCommand(root.workspaceDir)
+      if (wipe) {
+        wipeProc.command = wipe
+        wipeProc.running = true
+      }
+    }
   }
 
   function clearConversation() {
@@ -338,6 +353,11 @@ Item {
     var text = input.text.trim()
     if (!text || root.phase === "working" || root.creatingFolder) return
     if (root.projectChoice === "" && root.turns.length === 0) return
+    if (text.length > Logic.maxQuestionChars) {
+      root.projectError = "That question is too long to send (" + text.length + " characters, limit " + Logic.maxQuestionChars + "). Shorten it or paste the rest in a file."
+      return
+    }
+    root.projectError = ""
     root.userMutated = true
     if (!root.agent) root.agent = root.chosenAgent || root.defaultAgent
     root.pendingQuestion = text
@@ -355,8 +375,17 @@ Item {
   }
 
   function startAsk() {
+    // A cancelled agent or the scratch wipe may still be running. Starting now
+    // would reuse the process object or race the wipe, so wait for it to end.
+    if (root.busy()) {
+      root.startQueued = true
+      return
+    }
     killTimer.stop()
-    var prompt = (root.agent === "claude" || root.agent === "copilot")
+    // Claude and Copilot keep their own history once a session exists. Before
+    // that, earlier answers (if any) travel in the prompt.
+    var resumes = (root.agent === "claude" || root.agent === "copilot") && root.sessionStarted
+    var prompt = resumes
       ? root.pendingQuestion
       : Logic.promptWithHistory(root.turns, root.pendingQuestion)
     if ((root.agent === "claude" || root.agent === "copilot") && !root.sessionStarted) {
@@ -414,11 +443,10 @@ Item {
 
   function openTiled() {
     var last = root.turns.length > 0 ? root.turns[root.turns.length - 1].q : root.pendingQuestion
-    var agent = root.agent
+    var agent = root.agent || root.chosenAgent || root.defaultAgent
     var resumable = (agent === "claude" || agent === "copilot") && root.sessionStarted
-    var prompt = (agent === "claude" || agent === "copilot")
-      ? last
-      : Logic.promptWithHistory(root.turns, last)
+    var prompt = resumable ? last : Logic.promptWithHistory(root.turns, last)
+    if (!last) return
     var command = Logic.tiledCommand(agent, root.activeDir, root.homePath, root.sessionId, resumable, prompt)
     if (!command) {
       root.failCurrent(Logic.unsupportedAgentMessage(agent))
@@ -429,6 +457,7 @@ Item {
       root.failCurrent("Could not prepare the project folder for the agent.")
       return
     }
+    // The last answer may still be on its way. Stop it before handing over.
     var launch = [root.omarchyPath + "/bin/omarchy-launch-tui", "--app-id=org.omarchy.agent"].concat(wrapped)
     // Keep the scratch folder so the terminal sees files from this chat, and
     // drop the overlay history. The terminal session continues on its own.
@@ -520,9 +549,17 @@ Item {
       var token = liveToken
       liveToken = 0
       lastExit = exitCode
-      if (!Logic.shouldApplyExit(token, root.runToken)) return
+      if (!Logic.shouldApplyExit(token, root.runToken)) {
+        Qt.callLater(root.startIfQueued)
+        return
+      }
       root.finish()
     }
+  }
+
+  Process {
+    id: wipeProc
+    onExited: Qt.callLater(root.startIfQueued)
   }
 
   Timer {
@@ -1038,7 +1075,9 @@ Item {
             anchors.rightMargin: Commons.Style.spacing.md
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            enabled: root.phase !== "working"
+            // Read-only, not disabled: a disabled box drops Esc, Ctrl+N and Ctrl+T,
+            // which are how a long answer gets dismissed or cancelled.
+            readOnly: root.phase === "working"
             verticalAlignment: TextInput.AlignVCenter
             color: root.foreground
             selectionColor: root.foreground

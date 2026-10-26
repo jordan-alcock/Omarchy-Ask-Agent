@@ -206,3 +206,46 @@ try {
 }
 
 console.log("logic tests passed")
+
+// Angle brackets in answers stay visible; images and raw HTML still cannot load.
+assert.equal(Logic.displayMarkdown("Use List<String> and std::vector<int>."), "Use List\\<String> and std::vector\\<int>.")
+assert.equal(Logic.displayMarkdown("if a<b && c>d"), "if a\\<b && c>d")
+assert.equal(Logic.displayMarkdown("`List<String>` stays"), "`List<String>` stays")
+assert.equal(Logic.displayMarkdown("```\nvector<int> v;\n```\nafter <b>x</b>"), "```\nvector<int> v;\n```\nafter \\<b>x\\</b>")
+assert.equal(Logic.displayMarkdown("<script>x</script>"), "\\<script>x\\</script>")
+
+// A % that is not valid percent-encoding does not throw.
+assert.equal(Logic.pathFromUrl("file:///home/u/100%"), "/home/u/100%")
+assert.equal(Logic.pathFromUrl("file:///home/u/My%20Dir"), "/home/u/My Dir")
+
+// The history budget counts separators and the truncation suffix.
+{
+  const many = []
+  for (let i = 0; i < 40; i++) many.push({ q: "q" + i, a: "x".repeat(900), failed: false })
+  many.push({ q: "now", a: "", failed: false })
+  assert.ok(Logic.promptWithHistory(many, "now").length <= Logic.maxPromptChars)
+  const huge = [{ q: "a", a: "y".repeat(50000), failed: false }, { q: "now", a: "", failed: false }]
+  assert.ok(Logic.promptWithHistory(huge, "now").length <= Logic.maxPromptChars)
+}
+assert.ok(Logic.maxQuestionChars < 30000)
+
+// A saved conversation is validated before it replaces anything.
+assert.equal(Logic.parseConversation("not json"), null)
+assert.equal(Logic.parseConversation("[1]"), null)
+assert.equal(Logic.parseConversation("null"), null)
+{
+  const id = "123e4567-e89b-12d3-a456-426614174000"
+  const ok = Logic.parseConversation(JSON.stringify({ agent: "claude", sessionId: id, sessionStarted: true, turns: [{ q: "hi", a: "yo", failed: false }, { q: "wait", a: "" }] }))
+  assert.equal(ok.agent, "claude")
+  assert.equal(ok.sessionStarted, true)
+  assert.equal(ok.turns.length, 2)
+  assert.deepEqual(JSON.parse(JSON.stringify(ok.turns[1])), { q: "wait", a: "(interrupted)", failed: true })
+  const bad = Logic.parseConversation(JSON.stringify({ agent: "evil", sessionId: "../x", sessionStarted: true, turns: [null, 3, { q: 5 }, { q: "keep", a: "a" }] }))
+  assert.equal(bad.agent, "")
+  assert.equal(bad.sessionId, "")
+  assert.equal(bad.sessionStarted, false)
+  assert.equal(bad.turns.length, 1)
+  const empty = Logic.parseConversation(JSON.stringify({ sessionId: id, sessionStarted: true, turns: "nope" }))
+  assert.equal(empty.sessionStarted, false)
+  assert.equal(empty.turns.length, 0)
+}

@@ -4,6 +4,10 @@
 var agentTimeoutMs = 600000
 var maxPromptChars = 24000
 var maxTurnChars = 8000
+// Leaves room for earlier turns in the replayed prompt and stays far below the
+// kernel limit on a single argument.
+var maxQuestionChars = 12000
+var truncatedSuffix = "\n…(truncated)\n</turn>"
 
 var workspaceSuffix = "/omarchy/ask-agent/workspace"
 var stateSuffix = "/omarchy/ask-agent"
@@ -77,7 +81,11 @@ function fileUrl(dir) {
 
 function pathFromUrl(value) {
   var s = String(value == null ? "" : value)
-  if (s.indexOf("file://") === 0) s = decodeURIComponent(s.slice("file://".length))
+  if (s.indexOf("file://") === 0) {
+    s = s.slice("file://".length)
+    // A name with a stray % is not valid percent-encoding. Take it as written.
+    try { s = decodeURIComponent(s) } catch (e) {}
+  }
   return normalizeAbsolute(s)
 }
 
@@ -259,25 +267,69 @@ function promptWithHistory(turns, question) {
   var blocks = []
   for (var j = prior.length - 1; j >= 0; j--) {
     var block = "<turn>\nUser:\n" + bound(prior[j].q) + "\nAssistant:\n" + bound(prior[j].a) + "\n</turn>"
-    if (block.length > budget) {
-      if (blocks.length === 0)
-        blocks.unshift(block.slice(0, budget) + "\n…(truncated)\n</turn>")
+    // Blocks are joined with a blank line, which counts against the budget too.
+    var cost = block.length + (blocks.length > 0 ? 2 : 0)
+    if (cost > budget) {
+      var room = budget - truncatedSuffix.length
+      if (blocks.length === 0 && room > 0)
+        blocks.unshift(block.slice(0, room) + truncatedSuffix)
       break
     }
     blocks.unshift(block)
-    budget -= block.length
+    budget -= cost
   }
   return header + blocks.join("\n\n") + footer
 }
 
-// Qt's markdown renderer fetches image URLs. Keep the text, drop images and raw HTML.
+// Qt's markdown renderer fetches image URLs. Keep the text, drop images, and
+// escape a "<" that could open raw HTML so it shows as written (List<String>)
+// instead of being parsed. Code spans and fenced blocks are left alone.
 function displayMarkdown(text) {
   var s = String(text == null ? "" : text)
   s = s.replace(/!\[[^\]]*\]\s*\([^)]*\)/g, "[image]")
   s = s.replace(/!\[[^\]]*\]\s*\[[^\]]*\]/g, "[image]")
   s = s.replace(/<img\b[^>\n]*>/gi, "[image]")
-  s = s.replace(/<\/?[A-Za-z][^>\n]*>/g, "")
-  return s
+  var inFence = false
+  return s.split("\n").map(function(line) {
+    if (/^\s{0,3}(```|~~~)/.test(line)) {
+      inFence = !inFence
+      return line
+    }
+    if (inFence) return line
+    return line.split(/(`[^`]*`)/).map(function(part, i) {
+      return i % 2 === 1 ? part : part.replace(/<(?=[A-Za-z\/!?])/g, "\\<")
+    }).join("")
+  }).join("\n")
+}
+
+// Read a saved conversation without trusting its shape. Returns null when the
+// file is unusable, so a bad file never overwrites a chat in memory.
+var uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+var knownAgents = ["claude", "copilot", "cursor-agent", "codex", "gemini", "opencode"]
+
+function parseConversation(raw) {
+  var data
+  try { data = JSON.parse(raw) } catch (e) { return null }
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null
+  var listed = Array.isArray(data.turns) ? data.turns : []
+  var turns = []
+  for (var i = 0; i < listed.length; i++) {
+    var t = listed[i]
+    if (!t || typeof t !== "object" || typeof t.q !== "string") continue
+    var a = typeof t.a === "string" ? t.a : ""
+    // A turn still waiting when the shell went away will never be answered
+    if (a === "") turns.push({ q: t.q, a: "(interrupted)", failed: true })
+    else turns.push({ q: t.q, a: a, failed: !!t.failed })
+  }
+  var sessionId = typeof data.sessionId === "string" && uuidPattern.test(data.sessionId) ? data.sessionId : ""
+  var agent = typeof data.agent === "string" && knownAgents.indexOf(data.agent) >= 0 ? data.agent : ""
+  return {
+    agent: agent,
+    sessionId: sessionId,
+    // Resuming needs a session that exists and a chat that shows it
+    sessionStarted: !!data.sessionStarted && sessionId !== "" && turns.length > 0,
+    turns: turns
+  }
 }
 
 function finishTurn(turns, exitCode, stdout, stderr, timedOut) {
