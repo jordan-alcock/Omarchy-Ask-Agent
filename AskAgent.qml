@@ -46,6 +46,7 @@ Item {
   // window and opens straight in a tiled terminal, as `omarchy agent prompt` does.
   readonly property var headless: ({
     "claude": ["claude", "-p"],
+    "copilot": ["copilot", "-s", "--no-ask-user"],
     "cursor-agent": ["cursor-agent", "-p", "--trust"],
     "codex": ["codex", "exec"],
     "gemini": ["gemini", "-p"],
@@ -161,10 +162,15 @@ Item {
         command.push("--session-id", root.sessionId)
       }
       command.push("--")
+      command.push(question)
+    } else if (root.agent === "copilot") {
+      // --session-id starts a session the first time and resumes it afterwards
+      if (!root.sessionStarted) root.sessionId = root.uuid()
+      command.push("--session-id", root.sessionId)
+      command.push("--prompt=" + question)
     } else {
-      question = root.promptWithHistory(question)
+      command.push(root.promptWithHistory(question))
     }
-    command.push(question)
     agentProc.command = command
     agentProc.running = true
   }
@@ -196,15 +202,15 @@ Item {
     var last = root.turns.length > 0 ? root.turns[root.turns.length - 1].q : root.pendingQuestion
     var agent = root.agent
     var session = root.sessionId
-    var resumable = agent === "claude" && root.sessionStarted
+    var resumable = (agent === "claude" || agent === "copilot") && root.sessionStarted
     var prompt = root.promptWithHistory(last)
     root.clearConversation()
     root.dismiss()
     if (resumable) {
-      Quickshell.execDetached([
-        root.omarchyPath + "/bin/omarchy-launch-tui", "--app-id=org.omarchy.agent",
-        "claude", "--permission-mode", "auto", "--resume", session
-      ])
+      var resume = agent === "claude"
+        ? ["claude", "--permission-mode", "auto", "--resume", session]
+        : ["copilot", "--allow-all", "--session-id", session]
+      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-launch-tui", "--app-id=org.omarchy.agent"].concat(resume))
     } else {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-agent-prompt", prompt])
     }

@@ -10,10 +10,10 @@ It uses whatever you set with `omarchy default agent`, so no agent is hard-coded
 
 - The bar button opens a prompt overlay (`omarchy-shell shell toggle io.github.jordan-alcock.ask-agent '{}'`).
 - Enter sends the question to your default agent in headless mode and shows the answer as markdown.
-- **Claude Code:** follow-ups resume the same session, and "Open in tiled window"
-  (`Ctrl+T`) resumes it in a terminal with `omarchy-launch-tui`.
+- **Claude Code and GitHub Copilot:** follow-ups resume the same session, and "Open in tiled
+  window" (`Ctrl+T`) resumes it in a terminal with `omarchy-launch-tui`. Both are tested.
 - **Other agents** (`cursor-agent`, `codex`, `gemini`, `opencode`): each follow-up
-  resends the earlier turns in the prompt. Only Claude Code has been tested so far.
+  resends the earlier turns in the prompt. These are untested.
 - **Any other default agent:** skips the overlay and runs `omarchy agent prompt "<question>"`.
 
 The conversation is kept when you close the box or restart the shell, and cleared when you
@@ -37,7 +37,7 @@ The shell keeps this plugin loaded, so restart it after installing or updating.
 |---|---|
 | Omarchy 4 (Quattro, `omarchy-shell`) | the plugin is a bar widget plus an overlay |
 | A default agent: `omarchy default agent <name>` | the agent that answers |
-| `claude`, `cursor-agent`, `codex`, `gemini` or `opencode` on `PATH` | headless answers in the overlay |
+| `claude`, `copilot`, `cursor-agent`, `codex`, `gemini` or `opencode` on `PATH` | headless answers in the overlay |
 
 Your questions go only to the agent CLI you already use. The current conversation is saved,
 unencrypted, to `~/.local/state/omarchy/ask-agent/conversation.json` until you open it in a
