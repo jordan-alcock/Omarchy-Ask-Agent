@@ -60,6 +60,20 @@ Item {
     "opencode": ["opencode", "run"]
   })
 
+  // Omarchy's SUPER+C/V/X send Ctrl+C/V/X (or Ctrl/Shift+Insert in terminals) to the
+  // focused surface, and the held SUPER can ride along as Meta, which Qt's own
+  // shortcuts ignore. Classify the chord ourselves, whatever else is held.
+  function clipboardAction(event) {
+    var ctrl = event.modifiers & Qt.ControlModifier
+    var shift = event.modifiers & Qt.ShiftModifier
+    if (ctrl && event.key === Qt.Key_V) return "paste"
+    if (shift && event.key === Qt.Key_Insert) return "paste"
+    if (ctrl && event.key === Qt.Key_C) return "copy"
+    if (ctrl && event.key === Qt.Key_Insert) return "copy"
+    if (ctrl && event.key === Qt.Key_X) return "cut"
+    return ""
+  }
+
   function uuid() {
     return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {
       var r = Math.random() * 16 | 0
@@ -438,7 +452,15 @@ Item {
 
             Keys.onPressed: function(event) {
               var ctrl = event.modifiers & Qt.ControlModifier
-              if (event.key === Qt.Key_Escape) {
+              var clip = root.clipboardAction(event)
+              if (clip === "copy") {
+                root.copyAnswer()
+                event.accepted = true
+              } else if (clip === "paste") {
+                input.forceActiveFocus()
+                input.paste()
+                event.accepted = true
+              } else if (event.key === Qt.Key_Escape) {
                 root.dismiss()
                 event.accepted = true
               } else if (ctrl && event.key === Qt.Key_T) {
@@ -511,7 +533,19 @@ Item {
             focus: true
 
             Keys.onPressed: function(event) {
-              if (event.key === Qt.Key_Escape) {
+              var clip = root.clipboardAction(event)
+              if (clip === "paste") {
+                input.paste()
+                event.accepted = true
+              } else if (clip === "copy") {
+                // Nothing selected in the box: copy the latest answer instead
+                if (input.selectedText) input.copy()
+                else root.copyAnswer()
+                event.accepted = true
+              } else if (clip === "cut") {
+                input.cut()
+                event.accepted = true
+              } else if (event.key === Qt.Key_Escape) {
                 root.dismiss()
                 event.accepted = true
               } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
