@@ -2,38 +2,81 @@
 
 ![Ask agent overlay answering a question, with the agent picker, New chat, Copy answer and Open in tiled window buttons](preview.png)
 
-An "Ask agent…" button for the Omarchy bar. Click it, type a question, and the
-answer appears in a small overlay under the bar. Reply in the same box to keep
-going, or open the conversation in a tiled terminal window.
+Ask your AI agent a question without leaving what you are doing. Ask agent adds an
+"Ask agent…" button to the Omarchy bar. Click it, type a question, and the answer appears
+in a small overlay under the bar. Reply to keep the conversation going, or open it in a
+tiled terminal window.
 
-It uses whatever you set with `omarchy default agent`, so no agent is hard-coded.
+It uses the agent you have set with `omarchy default agent`, and you can pick a different
+installed agent from a dropdown at any time.
 
-## How it works
+## Models
 
-- The bar button opens a prompt overlay (`omarchy-shell shell toggle io.github.jordan-alcock.ask-agent '{}'`).
-- Enter sends the question to your default agent in headless mode and shows the answer as markdown.
-- **Tested:** Claude Code, Cursor CLI, Codex and GitHub Copilot.
-- **Claude Code and GitHub Copilot:** follow-ups resume the same session, and "Open in tiled
-  window" (`Ctrl+T`) resumes it in a terminal with `omarchy-launch-tui`.
-- **Cursor CLI and Codex:** each follow-up resends the earlier turns in the prompt.
-- **Gemini and opencode:** supported the same way as Cursor and Codex, but untested.
-- **Any other default agent:** skips the overlay and runs `omarchy agent prompt "<question>"`.
+Ask agent currently works with **cloud-hosted models** through the agent CLIs you already
+have installed:
 
-The conversation is kept when you close the box or restart the shell, and cleared when you
-open it in a tiled window or start a new chat.
+| Agent | Status |
+|---|---|
+| Claude Code | Supported |
+| Cursor CLI | Supported |
+| Codex | Supported |
+| GitHub Copilot | Supported |
+| Gemini CLI, opencode | Should work, not yet verified |
 
-Select answer text with the mouse and copy it with `Ctrl+C`, or use **Copy answer** for the latest reply. Paste works in the reply box. Omarchy's `SUPER + C`, `SUPER + V` and `SUPER + X` work too,
-as do `Ctrl+C/V/X` and `Ctrl/Shift+Insert`. With nothing selected, copy takes the latest answer.
+**Local models are planned.** Support for running against local LLMs (for example through
+Ollama) is on the roadmap, so your questions can stay on your own machine. It is not
+available yet.
 
-Pick which installed agent answers with the dropdown at the right of the reply box (it
-defaults to your `omarchy default agent` and locks once a chat has started). Open it from the
-keyboard with a binding, e.g. in `~/.config/hypr/bindings.lua`:
+## Using it
+
+1. Click **Ask agent…** in the bar (or use a keyboard shortcut, see below).
+2. Type your question and press `Enter`.
+3. Read the answer. Type a reply and press `Enter` to continue.
+4. Press `Ctrl+T` to continue in a tiled terminal window, or `Esc` to close.
+
+Your conversation is kept when you close the box or restart the shell. It is cleared when
+you open a tiled window or start a new chat.
+
+| Key | Action |
+|---|---|
+| `Enter` | Send |
+| `Ctrl+T` | Open in tiled window |
+| `Ctrl+N` | New chat |
+| `Esc` | Close |
+
+### Choosing an agent
+
+The dropdown at the right of the reply box lists the agents installed on your machine. It
+defaults to your Omarchy default agent and locks once a chat has started. Start a new chat
+to switch.
+
+### Choosing a project folder
+
+The project menu on the left of the box sets the folder the agent works in:
+
+- **Choose folder…** picks an existing folder.
+- **Create new folder…** picks a location, then asks for a name.
+- **No project yet** uses an empty scratch folder, which is deleted when you start a new chat.
+- Recent folders are remembered. A folder you picked is never deleted.
+
+Your home directory cannot be used as the project itself. "Open in tiled window" uses the
+same folder and starts the agent with its normal permission prompts.
+
+### Copy and paste
+
+Select answer text with the mouse and copy it, or use **Copy answer** for the latest reply.
+Paste works in the reply box. Omarchy's `SUPER + C`, `SUPER + V` and `SUPER + X` work, as
+do `Ctrl+C/V/X` and `Ctrl/Shift+Insert`. With nothing selected, copy takes the latest answer.
+
+### Keyboard shortcut
+
+Add a binding in `~/.config/hypr/bindings.lua`:
 
 ```lua
 o.bind("SUPER + A", "Ask agent", "omarchy-shell shell toggle io.github.jordan-alcock.ask-agent '{}'")
 ```
 
-Keys: `Enter` send · `Ctrl+T` open in tiled window · `Ctrl+N` new chat · `Esc` close.
+It then shows up under Setup → Keybindings, where you can change it.
 
 ## Install
 
@@ -43,25 +86,31 @@ omarchy bar move io.github.jordan-alcock.ask-agent --section center --index 0
 omarchy restart shell
 ```
 
-The shell keeps this plugin loaded, so restart it after installing or updating.
+Restart the shell after installing or updating.
 
 ## Requirements
 
-| Needs | Why |
-|---|---|
-| Omarchy 4 (Quattro, `omarchy-shell`) | the plugin is a bar widget plus an overlay |
-| A default agent: `omarchy default agent <name>` | the agent that answers |
-| `claude`, `copilot`, `cursor-agent`, `codex`, `gemini` or `opencode` on `PATH` | headless answers in the overlay |
+- Omarchy 4 (Quattro)
+- A default agent, set with `omarchy default agent <name>`
+- At least one of `claude`, `copilot`, `cursor-agent`, `codex`, `gemini` or `opencode`
+  installed and signed in
 
-Your questions go only to the agent CLI you already use. The current conversation is saved,
-unencrypted, to `$XDG_STATE_HOME/omarchy/ask-agent/conversation.json` (default
-`~/.local/state/…`) until you open it in a terminal or start a new chat. The folder is owner-only (`700`).
+## Privacy
+
+Your questions go only to the agent you chose, the same as if you typed them into that
+agent yourself. Because the supported agents are cloud-hosted, they are sent to that
+provider.
+
+The current conversation is saved, unencrypted, to
+`~/.local/state/omarchy/ask-agent/conversation.json` (or under `$XDG_STATE_HOME`) until you
+open it in a terminal or start a new chat. The folder is readable only by you. Answers are
+shown as markdown with images and raw HTML left out.
 
 ## Removal
 
 ```bash
 omarchy plugin remove io.github.jordan-alcock.ask-agent
-rm -rf ~/.local/state/omarchy/ask-agent   # saved conversation (or under $XDG_STATE_HOME)
+rm -rf ~/.local/state/omarchy/ask-agent
 omarchy restart shell
 ```
 
