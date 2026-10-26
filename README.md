@@ -21,6 +21,14 @@ open it in a tiled window or start a new chat.
 
 Select answer text with the mouse and copy it with `Ctrl+C`, or use **Copy answer** for the latest reply. Paste works in the reply box.
 
+Pick which installed agent answers with the dropdown at the right of the reply box (it
+defaults to your `omarchy default agent` and locks once a chat has started). Open it from the
+keyboard with a binding, e.g. in `~/.config/hypr/bindings.lua`:
+
+```lua
+o.bind("SUPER + A", "Ask agent", "omarchy-shell shell toggle io.github.jordan-alcock.ask-agent '{}'")
+```
+
 Keys: `Enter` send · `Ctrl+T` open in tiled window · `Ctrl+N` new chat · `Esc` close.
 
 ## Install

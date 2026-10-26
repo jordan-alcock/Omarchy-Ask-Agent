@@ -24,6 +24,13 @@ Item {
   property string sessionId: ""
   property bool sessionStarted: false
   readonly property bool chatting: turns.length > 0
+  // The agent picked in the dropdown ("" means the Omarchy default), the default
+  // itself, and which of the supported agents are installed.
+  property string chosenAgent: ""
+  property string defaultAgent: ""
+  property var installed: []
+  property bool pickerOpen: false
+  readonly property var pickerOptions: [""].concat(installed)
   readonly property string transcript: turns.map(function(t) {
     return "**›** " + t.q + "\n\n" + (t.a === "" ? "_thinking…_" : t.a)
   }).join("\n\n---\n\n")
@@ -105,6 +112,9 @@ Item {
 
   function open(payloadJson) {
     root.opened = true
+    root.pickerOpen = false
+    defaultProc.running = true
+    installedProc.running = true
     root.scrollToEnd()
     Qt.callLater(function() { input.forceActiveFocus() })
   }
@@ -128,6 +138,7 @@ Item {
   function submit() {
     var text = input.text.trim()
     if (!text || root.phase === "working") return
+    if (!root.agent) root.agent = root.chosenAgent || root.defaultAgent
     root.pendingQuestion = text
     root.turns = root.turns.concat([{ q: text, a: "", failed: false }])
     input.text = ""
@@ -206,19 +217,35 @@ Item {
     })
   }
 
+  // How each supported agent starts interactively, mirroring omarchy-agent's
+  // unattended flags, so the tiled window runs the agent that was picked here
+  // rather than the Omarchy default.
+  function tiledCommand(agent, session, resumable, prompt) {
+    switch (agent) {
+    case "claude":
+      return resumable ? ["claude", "--permission-mode", "auto", "--resume", session]
+                       : ["claude", "--permission-mode", "auto", "--", prompt]
+    case "copilot":
+      return resumable ? ["copilot", "--allow-all", "--session-id", session]
+                       : ["copilot", "--allow-all", "--interactive", prompt]
+    case "cursor-agent": return ["cursor-agent", "--yolo", "--trust", "agent", "--", prompt]
+    case "codex": return ["codex", "--approve-for-me", "--", prompt]
+    case "gemini": return ["gemini", "--yolo", "--prompt-interactive", prompt]
+    case "opencode": return ["opencode", "--auto", "--prompt", prompt]
+    }
+    return null
+  }
+
   function openTiled() {
     var last = root.turns.length > 0 ? root.turns[root.turns.length - 1].q : root.pendingQuestion
     var agent = root.agent
-    var session = root.sessionId
     var resumable = (agent === "claude" || agent === "copilot") && root.sessionStarted
     var prompt = root.promptWithHistory(last)
+    var command = root.tiledCommand(agent, root.sessionId, resumable, prompt)
     root.clearConversation()
     root.dismiss()
-    if (resumable) {
-      var resume = agent === "claude"
-        ? ["claude", "--permission-mode", "auto", "--resume", session]
-        : ["copilot", "--allow-all", "--session-id", session]
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-launch-tui", "--app-id=org.omarchy.agent"].concat(resume))
+    if (command) {
+      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-launch-tui", "--app-id=org.omarchy.agent"].concat(command))
     } else {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-agent-prompt", prompt])
     }
@@ -234,6 +261,20 @@ Item {
   // Owner-only: the folder holds the whole conversation. chmod also tightens a
   // folder an earlier version created with the default mode.
   Component.onCompleted: Quickshell.execDetached(["sh", "-c", 'mkdir -p "$1" && chmod 700 "$1"', "sh", root.stateDir])
+
+  Process {
+    id: defaultProc
+    command: [root.omarchyPath + "/bin/omarchy-default-agent"]
+    stdout: StdioCollector { onStreamFinished: root.defaultAgent = text.trim() }
+  }
+
+  Process {
+    id: installedProc
+    command: ["sh", "-c", 'for a in claude copilot cursor-agent codex gemini opencode; do command -v "$a" >/dev/null 2>&1 && echo "$a"; done']
+    stdout: StdioCollector {
+      onStreamFinished: root.installed = text.trim().split("\n").filter(function(a) { return a })
+    }
+  }
 
   Process {
     id: agentNameProc
@@ -286,6 +327,66 @@ Item {
       onClicked: root.dismiss()
     }
 
+    // Agent picker, shown under the card; the card's own click area closes it.
+    Rectangle {
+      id: pickerPopup
+      visible: root.pickerOpen && !root.chatting
+      z: 10
+      width: Style.space(240)
+      height: pickerColumn.height + Style.spacing.md * 2
+      x: card.x + card.width - width - root.contentMargin
+      y: card.y + card.height + Style.spacing.md
+      radius: root.cornerRadius
+      color: root.background
+      border.width: 1
+      border.color: root.border
+
+      Column {
+        id: pickerColumn
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: Style.spacing.md
+        spacing: 2
+
+        Repeater {
+          model: root.pickerOptions
+
+          Rectangle {
+            required property string modelData
+            width: pickerColumn.width
+            height: root.rowHeight * 0.8
+            radius: root.cornerRadius
+            color: optionArea.containsMouse ? root.selectedBackground : "transparent"
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.left: parent.left
+              anchors.leftMargin: Style.spacing.md
+              textFormat: Text.PlainText
+              text: (modelData === root.chosenAgent ? "✓ " : "   ")
+                + (modelData === "" ? "Default (" + (root.defaultAgent || "none") + ")" : modelData)
+              color: optionArea.containsMouse ? root.selectedText : root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.title
+            }
+
+            MouseArea {
+              id: optionArea
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: {
+                root.chosenAgent = modelData
+                root.pickerOpen = false
+                input.forceActiveFocus()
+              }
+            }
+          }
+        }
+      }
+    }
+
     BorderSurface {
       id: card
       width: root.cardWidth
@@ -299,7 +400,7 @@ Item {
       borderSpec: root.borderSpec
       padding: root.contentMargin
 
-      MouseArea { anchors.fill: parent; onClicked: {} }
+      MouseArea { anchors.fill: parent; onClicked: root.pickerOpen = false }
 
       Column {
         anchors.fill: parent
@@ -361,9 +462,43 @@ Item {
           width: parent.width
           height: root.rowHeight
 
+          Rectangle {
+            id: picker
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            height: parent.height - Style.spacing.md
+            width: pickerLabel.implicitWidth + Style.spacing.md * 3
+            radius: root.cornerRadius
+            color: "transparent"
+            border.width: 1
+            border.color: root.border
+
+            Text {
+              id: pickerLabel
+              anchors.centerIn: parent
+              textFormat: Text.PlainText
+              text: root.chatting ? (root.agent || root.chosenAgent || root.defaultAgent || "agent")
+                : ((root.chosenAgent || root.defaultAgent || "agent") + (root.installed.length > 1 ? " ▾" : ""))
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.title
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              enabled: !root.chatting && root.phase !== "working" && root.installed.length > 1
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.pickerOpen = !root.pickerOpen
+            }
+          }
+
           TextInput {
             id: input
-            anchors.fill: parent
+            anchors.left: parent.left
+            anchors.right: picker.left
+            anchors.rightMargin: Style.spacing.md
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
             enabled: root.phase !== "working"
             verticalAlignment: TextInput.AlignVCenter
             color: root.foreground
