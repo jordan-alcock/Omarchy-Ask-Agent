@@ -187,33 +187,45 @@ function removeConversationCommand(stateDir) {
   return ["rm", "-f", "--", path]
 }
 
-// There is no project yet, so every supported agent is pinned to the scratch
-// directory. Prompts are a single argument after -- or inside --flag=value,
-// so a question that starts with a dash cannot become another option.
-function headlessCommand(agent, workspaceDir, home, sessionId, sessionStarted, prompt) {
+// The question never goes in the argument list, where any local user can read it
+// from /proc. It reaches the agent on stdin (see promptViaStdin). opencode is
+// not supported because it did not take a prompt on stdin when tested.
+function headlessCommand(agent, workspaceDir, home, sessionId, sessionStarted) {
   if (!agentDirOk(workspaceDir, home)) return null
   switch (agent) {
   case "claude":
     var claude = ["claude", "-p"]
     if (sessionStarted && sessionId) claude.push("--resume", sessionId)
     else if (sessionId) claude.push("--session-id", sessionId)
-    claude.push("--", prompt)
     return claude
   case "copilot":
     var copilot = ["copilot", "-s", "--no-ask-user"]
     if (sessionId) copilot.push("--session-id", sessionId)
-    copilot.push("--prompt=" + prompt)
     return copilot
   case "cursor-agent":
-    return ["cursor-agent", "-p", "--trust", "--sandbox", "enabled", "--workspace", workspaceDir, "--", prompt]
+    return ["cursor-agent", "-p", "--trust", "--sandbox", "enabled", "--workspace", workspaceDir]
   case "codex":
-    return ["codex", "exec", "--skip-git-repo-check", "-C", workspaceDir, "--", prompt]
+    return ["codex", "exec", "--skip-git-repo-check", "-C", workspaceDir]
   case "gemini":
-    return ["gemini", "--skip-trust", "--prompt=" + prompt]
-  case "opencode":
-    return ["opencode", "run", "--", prompt]
+    return ["gemini", "--skip-trust", "--prompt="]
   }
   return null
+}
+
+// Hands the question to the command as stdin. It travels in the ASK_PROMPT
+// environment variable (readable only by its owner, unlike the argument list),
+// goes into a here-document that is already open when the agent starts, and is
+// removed from the agent's own environment. exec keeps the process id, so
+// stopping the run still stops the agent.
+var promptScript = 'exec 3<<ASK_PROMPT_END\n$ASK_PROMPT\nASK_PROMPT_END\nunset ASK_PROMPT; exec "$@" <&3 3<&-'
+
+function promptViaStdin(wrapped) {
+  if (!wrapped) return null
+  return ["sh", "-c", promptScript, "sh"].concat(wrapped)
+}
+
+function promptEnvironment(prompt) {
+  return { ASK_PROMPT: String(prompt == null ? "" : prompt) }
 }
 
 // The tiled window is interactive, so the person can answer permission prompts.
@@ -231,15 +243,13 @@ function tiledCommand(agent, workspaceDir, home, sessionId, resumable, prompt) {
     return ["codex", "--skip-git-repo-check", "-C", workspaceDir, "--", prompt]
   case "gemini":
     return ["gemini", "--skip-trust", "--prompt-interactive=" + prompt]
-  case "opencode":
-    return ["opencode", "--prompt=" + prompt]
   }
   return null
 }
 
 function unsupportedAgentMessage(agent) {
   var name = agent ? agent : "The default agent"
-  return name + " is not one of the agents Ask agent can pin to a scratch folder (claude, copilot, cursor-agent, codex, gemini, opencode)."
+  return name + " is not one of the agents Ask agent can pin to a scratch folder (claude, copilot, cursor-agent, codex, gemini)."
 }
 
 function bound(text) {
@@ -305,7 +315,7 @@ function displayMarkdown(text) {
 // Read a saved conversation without trusting its shape. Returns null when the
 // file is unusable, so a bad file never overwrites a chat in memory.
 var uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-var knownAgents = ["claude", "copilot", "cursor-agent", "codex", "gemini", "opencode"]
+var knownAgents = ["claude", "copilot", "cursor-agent", "codex", "gemini"]
 
 function parseConversation(raw) {
   var data

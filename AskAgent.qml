@@ -395,12 +395,13 @@ Item {
         return
       }
     }
-    var command = Logic.headlessCommand(root.agent, root.activeDir, root.homePath, root.sessionId, root.sessionStarted, prompt)
+    var command = Logic.headlessCommand(root.agent, root.activeDir, root.homePath, root.sessionId, root.sessionStarted)
     if (!command) {
       root.failCurrent(Logic.unsupportedAgentMessage(root.agent))
       return
     }
-    var wrapped = root.wrapAgent(command, true)
+    // The prompt goes in on stdin, so it never appears in the process arguments.
+    var wrapped = Logic.promptViaStdin(root.wrapAgent(command, false))
     if (!wrapped) {
       root.failCurrent("Could not prepare the project folder for the agent.")
       return
@@ -409,6 +410,7 @@ Item {
     agentProc.pendingToken = root.runToken
     agentProc.timedOut = false
     agentProc.command = wrapped
+    agentProc.environment = Logic.promptEnvironment(prompt)
     agentProc.running = true
     agentTimeout.restart()
   }
@@ -432,7 +434,11 @@ Item {
   function copyAnswer() {
     var text = answerText.selectedText
     if (!text && root.turns.length > 0) text = root.turns[root.turns.length - 1].a
-    if (text) Quickshell.execDetached(["wl-copy", "--", text])
+    // The text goes in on stdin through the environment, not the argument list.
+    if (text) Quickshell.execDetached({
+      command: ["sh", "-c", 'printf "%s" "$ASK_COPY" | exec wl-copy'],
+      environment: { ASK_COPY: text }
+    })
   }
 
   function scrollToEnd() {
@@ -510,7 +516,7 @@ Item {
 
   Process {
     id: installedProc
-    command: ["sh", "-c", 'for a in claude copilot cursor-agent codex gemini opencode; do command -v "$a" >/dev/null 2>&1 && echo "$a"; done']
+    command: ["sh", "-c", 'for a in claude copilot cursor-agent codex gemini; do command -v "$a" >/dev/null 2>&1 && echo "$a"; done']
     stdout: StdioCollector {
       onStreamFinished: root.installed = text.trim().split("\n").filter(function(a) { return a })
     }

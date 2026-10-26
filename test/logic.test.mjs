@@ -33,19 +33,18 @@ function optionNames(argv) {
   return names
 }
 
-const agents = ["claude", "copilot", "cursor-agent", "codex", "gemini", "opencode"]
+const agents = ["claude", "copilot", "cursor-agent", "codex", "gemini"]
 const nasty = "--dangerously-bypass-approvals-and-sandbox"
 
 for (const agent of agents) {
-  const headless = Logic.headlessCommand(agent, workspace, home, "sess", false, nasty)
-  const wrapped = Logic.shellWrapHeadless(workspace, headless)
-  assert.ok(wrapped)
-  assert.equal(wrapped[5], headless[0])
-  assert.ok(wrapped.some(function(arg) { return arg === nasty || arg.endsWith("=" + nasty) }), agent + " keeps the question out of the shell script")
-  assert.equal(wrapped[2].includes(nasty), false)
-  assert.equal(wrapped[2].includes("</dev/null"), true)
+  const headless = Logic.headlessCommand(agent, workspace, home, "sess", false)
+  assert.ok(headless, agent + " has a headless command")
+  assert.equal(headless.some(function(arg) { return arg.includes(nasty) }), false, agent + " keeps the question out of the arguments")
   assert.equal(headless.includes(home), false, agent + " headless does not receive $HOME")
   for (const flag of flags) assert.equal(optionNames(headless).includes(flag), false, agent + " headless has " + flag)
+  const wrapped = Logic.promptViaStdin(Logic.shellWrapHeadless(workspace, headless))
+  assert.ok(wrapped)
+  assert.equal(wrapped.join("\n").includes(nasty), false, agent + " keeps the question out of the whole command")
 
   const tiled = Logic.tiledCommand(agent, workspace, home, "sess", false, nasty)
   const interactive = Logic.shellWrapInteractive(workspace, tiled)
@@ -54,20 +53,30 @@ for (const agent of agents) {
   assert.equal(tiled.includes(home), false)
   for (const flag of flags) assert.equal(optionNames(tiled).includes(flag), false, agent + " tiled has " + flag)
 }
+assert.equal(Logic.headlessCommand("opencode", workspace, home, "", false), null)
 
-const cursor = Logic.headlessCommand("cursor-agent", workspace, home, "", false, "hello")
-assert.equal(JSON.stringify(cursor.slice(0, 8)), JSON.stringify(["cursor-agent", "-p", "--trust", "--sandbox", "enabled", "--workspace", workspace, "--"]))
-assert.equal(cursor.at(-1), "hello")
+const cursor = Logic.headlessCommand("cursor-agent", workspace, home, "", false)
+assert.equal(JSON.stringify(cursor), JSON.stringify(["cursor-agent", "-p", "--trust", "--sandbox", "enabled", "--workspace", workspace]))
 
-const codex = Logic.headlessCommand("codex", workspace, home, "", false, nasty)
+const codex = Logic.headlessCommand("codex", workspace, home, "", false)
 assert.ok(codex.includes("-C"))
 assert.ok(codex.includes(workspace))
-assert.ok(codex.indexOf("--") < codex.indexOf(nasty))
 
-assert.equal(Logic.headlessCommand("claude", workspace, home, "sess", true, "next")[2], "--resume")
-assert.equal(Logic.headlessCommand("other", workspace, home, "", false, "hi"), null)
-assert.equal(Logic.headlessCommand("codex", home, home, "", false, "hi"), null)
-assert.equal(Logic.headlessCommand("codex", "/home", home, "", false, "hi"), null)
+// The question reaches the agent on stdin, and not through its arguments or environment.
+{
+  const question = "line one\n$(echo hacked) `x` \\n ASK_PROMPT_END\n--dangerously-bypass-approvals-and-sandbox"
+  const wrapped = Logic.promptViaStdin(["sh", "-c", 'cat; printf "|%s|" "${ASK_PROMPT-unset}"; echo "$0 $*"', "agent", "a1"])
+  const run = spawnSync("sh", wrapped.slice(1), { encoding: "utf8", env: { ...process.env, ...Logic.promptEnvironment(question) } })
+  assert.equal(run.status, 0)
+  assert.ok(run.stdout.startsWith(question + "\n"), "stdin carries the question exactly")
+  assert.ok(run.stdout.includes("|unset|"), "the agent's environment no longer holds the question")
+  assert.equal(run.stdout.includes("agent a1"), true)
+}
+
+assert.equal(Logic.headlessCommand("claude", workspace, home, "sess", true)[2], "--resume")
+assert.equal(Logic.headlessCommand("other", workspace, home, "", false), null)
+assert.equal(Logic.headlessCommand("codex", home, home, "", false), null)
+assert.equal(Logic.headlessCommand("codex", "/home", home, "", false), null)
 assert.ok(Logic.projectOk("/home/example/src/app", home))
 assert.equal(Logic.projectOk(home, home), false)
 assert.equal(Logic.projectOk("/home/example/../tmp/app", home), false)

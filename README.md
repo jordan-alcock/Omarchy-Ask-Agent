@@ -21,7 +21,7 @@ have installed:
 | Cursor CLI | Supported |
 | Codex | Supported |
 | GitHub Copilot | Supported |
-| Gemini CLI, opencode | Should work, not yet verified |
+| Gemini CLI | Should work, not yet verified |
 
 **Local models are planned.** Support for running against local LLMs (for example through
 Ollama) is on the roadmap, so your questions can stay on your own machine. It is not
@@ -95,7 +95,7 @@ Restart the shell after installing or updating.
 
 - Omarchy 4 (Quattro)
 - A default agent, set with `omarchy default agent <name>`
-- At least one of `claude`, `copilot`, `cursor-agent`, `codex`, `gemini` or `opencode`
+- At least one of `claude`, `copilot`, `cursor-agent`, `codex` or `gemini`
   installed and signed in
 - `wl-clipboard` (`wl-copy`), used by **Copy answer**. Included with Omarchy.
 - `git`, used to keep the agent from searching above its folder and to create the
@@ -127,6 +127,13 @@ anything in `/usr/share/omarchy`.
 Your questions go only to the agent you chose, the same as if you typed them into that
 agent yourself. Because the supported agents are cloud-hosted, they are sent to that
 provider.
+
+Questions and **Copy answer** text are not put in command-line arguments, where other
+users on the same machine could read them from `/proc`. Questions reach the agent on stdin
+and copied text reaches `wl-copy` on stdin. One exception: **Open in tiled window** starts
+a new terminal session, and for an agent that cannot resume (Cursor, Codex, Gemini, or Claude
+and Copilot before their first answer) the question is passed as an argument for as long as
+that agent runs. On a shared machine, avoid that button for sensitive questions.
 
 The current conversation is saved, unencrypted, to
 `~/.local/state/omarchy/ask-agent/conversation.json` (or under `$XDG_STATE_HOME`) until you
