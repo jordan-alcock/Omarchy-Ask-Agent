@@ -55,7 +55,7 @@ Item {
     "claude": ["claude", "-p"],
     "copilot": ["copilot", "-s", "--no-ask-user"],
     "cursor-agent": ["cursor-agent", "-p", "--trust"],
-    "codex": ["codex", "exec"],
+    "codex": ["codex", "exec", "--skip-git-repo-check"],
     "gemini": ["gemini", "-p"],
     "opencode": ["opencode", "run"]
   })
@@ -183,7 +183,8 @@ Item {
     } else {
       command.push(root.promptWithHistory(question))
     }
-    agentProc.command = command
+    // Some CLIs (codex) wait for stdin to close when it is a pipe, so hand them /dev/null
+    agentProc.command = ["sh", "-c", 'exec "$@" </dev/null', "sh"].concat(command)
     agentProc.running = true
   }
 
