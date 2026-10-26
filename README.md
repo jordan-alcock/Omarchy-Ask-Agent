@@ -97,6 +97,10 @@ Restart the shell after installing or updating.
 - A default agent, set with `omarchy default agent <name>`
 - At least one of `claude`, `copilot`, `cursor-agent`, `codex`, `gemini` or `opencode`
   installed and signed in
+- `wl-clipboard` (`wl-copy`), used by **Copy answer**. Included with Omarchy.
+- `git`, used to keep the agent from searching above its folder and to create the
+  **No project yet** scratch repo. Included with Omarchy.
+- `omarchy-launch-tui`, used by **Open in tiled window**. Part of Omarchy.
 
 ## Outside the plugin
 
