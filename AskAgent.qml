@@ -15,7 +15,6 @@ Item {
   property var manifest: null
 
   property bool opened: false
-  // "input" while typing, "working" while the agent answers, "answer" once it has
   // "input" while idle or typing, "working" while the agent answers
   property string phase: "input"
   // The conversation so far, one {q, a, failed} per exchange
@@ -60,7 +59,36 @@ Item {
     })
   }
 
-  function reset() {
+  readonly property string stateDir: homePath + "/.local/state/omarchy/ask-agent"
+
+  // The conversation lives here until it is opened in a terminal or cleared, so it
+  // survives closing the overlay and restarting the shell.
+  function save() {
+    stateFile.setText(JSON.stringify({
+      agent: root.agent,
+      sessionId: root.sessionId,
+      sessionStarted: root.sessionStarted,
+      turns: root.turns
+    }))
+  }
+
+  function restore(raw) {
+    try {
+      var data = JSON.parse(raw)
+      var turns = (data.turns || []).map(function(t) {
+        // A turn still waiting when the shell went away will never be answered
+        return t.a === "" ? { q: t.q, a: "(interrupted)", failed: true } : t
+      })
+      root.agent = data.agent || ""
+      root.sessionId = data.sessionId || ""
+      root.sessionStarted = !!data.sessionStarted
+      root.turns = turns
+    } catch (e) {
+      root.turns = []
+    }
+  }
+
+  function clearConversation() {
     agentProc.running = false
     finishTimer.stop()
     root.phase = "input"
@@ -70,11 +98,12 @@ Item {
     root.sessionStarted = false
     root.agent = ""
     input.text = ""
+    Quickshell.execDetached(["rm", "-f", root.stateDir + "/conversation.json"])
   }
 
   function open(payloadJson) {
-    root.reset()
     root.opened = true
+    root.scrollToEnd()
     Qt.callLater(function() { input.forceActiveFocus() })
   }
 
@@ -82,8 +111,8 @@ Item {
     root.opened = false
   }
 
+  // Closing keeps the conversation; an answer still in flight lands in the history.
   function dismiss() {
-    root.reset()
     root.opened = false
     if (root.shell && typeof root.shell.hide === "function")
       root.shell.hide((root.manifest && root.manifest.id) || "io.github.jordan-alcock.ask-agent")
@@ -101,6 +130,7 @@ Item {
     root.turns = root.turns.concat([{ q: text, a: "", failed: false }])
     input.text = ""
     root.phase = "working"
+    root.save()
     root.scrollToEnd()
     if (root.agent) root.startAsk()
     else agentNameProc.running = true
@@ -151,6 +181,7 @@ Item {
     root.turns = turns
     if (!failed) root.sessionStarted = true
     root.phase = "input"
+    root.save()
     root.scrollToEnd()
     Qt.callLater(function() { input.forceActiveFocus() })
   }
@@ -167,6 +198,7 @@ Item {
     var session = root.sessionId
     var resumable = agent === "claude" && root.sessionStarted
     var prompt = root.promptWithHistory(last)
+    root.clearConversation()
     root.dismiss()
     if (resumable) {
       Quickshell.execDetached([
@@ -177,6 +209,15 @@ Item {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-agent-prompt", prompt])
     }
   }
+
+  FileView {
+    id: stateFile
+    path: root.stateDir + "/conversation.json"
+    printErrors: false
+    onLoaded: root.restore(text())
+  }
+
+  Component.onCompleted: Quickshell.execDetached(["mkdir", "-p", root.stateDir])
 
   Process {
     id: agentNameProc
@@ -298,6 +339,9 @@ Item {
               } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                 root.submit()
                 event.accepted = true
+              } else if (event.key === Qt.Key_N && (event.modifiers & Qt.ControlModifier) && root.chatting) {
+                root.clearConversation()
+                event.accepted = true
               } else if (event.key === Qt.Key_T && (event.modifiers & Qt.ControlModifier) && root.chatting) {
                 root.openTiled()
                 event.accepted = true
@@ -345,6 +389,31 @@ Item {
               anchors.fill: parent
               cursorShape: Qt.PointingHandCursor
               onClicked: root.openTiled()
+            }
+          }
+
+          Rectangle {
+            width: newLabel.implicitWidth + Style.spacing.md * 4
+            height: parent.height
+            radius: root.cornerRadius
+            color: "transparent"
+            border.width: 1
+            border.color: root.border
+
+            Text {
+              id: newLabel
+              anchors.centerIn: parent
+              textFormat: Text.PlainText
+              text: "New chat  ^N"
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.title
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.clearConversation()
             }
           }
 

@@ -16,7 +16,10 @@ It uses whatever you set with `omarchy default agent`, so no agent is hard-coded
   resends the earlier turns in the prompt. Only Claude Code has been tested so far.
 - **Any other default agent:** skips the overlay and runs `omarchy agent prompt "<question>"`.
 
-Keys: `Enter` send · `Ctrl+T` open in tiled window · `Esc` close.
+The conversation is kept when you close the box or restart the shell, and cleared when you
+open it in a tiled window or start a new chat.
+
+Keys: `Enter` send · `Ctrl+T` open in tiled window · `Ctrl+N` new chat · `Esc` close.
 
 ## Install
 
@@ -36,13 +39,15 @@ The shell keeps this plugin loaded, so restart it after installing or updating.
 | A default agent: `omarchy default agent <name>` | the agent that answers |
 | `claude`, `cursor-agent`, `codex`, `gemini` or `opencode` on `PATH` | headless answers in the overlay |
 
-The plugin reads and stores nothing. It sends your question only to the agent
-CLI you already use, and keeps the conversation in memory until you close the box.
+Your questions go only to the agent CLI you already use. The current conversation is saved,
+unencrypted, to `~/.local/state/omarchy/ask-agent/conversation.json` until you open it in a
+terminal or start a new chat.
 
 ## Removal
 
 ```bash
 omarchy plugin remove io.github.jordan-alcock.ask-agent
+rm -rf ~/.local/state/omarchy/ask-agent   # saved conversation
 omarchy restart shell
 ```
 
