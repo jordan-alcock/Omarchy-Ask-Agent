@@ -194,6 +194,7 @@ Item {
   function clearConversation() {
     // A chosen project is theirs. Only the scratch repo is emptied.
     root.resetConversation(root.projectChoice !== "project")
+    root.execCommand(Logic.removeHandoffCommand(root.stateDir))
     input.text = ""
   }
 
@@ -451,9 +452,12 @@ Item {
     var last = root.turns.length > 0 ? root.turns[root.turns.length - 1].q : root.pendingQuestion
     var agent = root.agent || root.chosenAgent || root.defaultAgent
     var resumable = (agent === "claude" || agent === "copilot") && root.sessionStarted
-    var prompt = resumable ? last : Logic.promptWithHistory(root.turns, last)
     if (!last) return
-    var command = Logic.tiledCommand(agent, root.activeDir, root.homePath, root.sessionId, resumable, prompt)
+    // A session that cannot resume reads the conversation from a file instead of
+    // getting it in its arguments, where other users could see it.
+    var handoff = resumable ? "" : Logic.handoffPath(root.stateDir)
+    var handoffText = resumable ? "" : Logic.promptWithHistory(root.turns, last)
+    var command = Logic.tiledCommand(agent, root.activeDir, root.homePath, root.sessionId, resumable, handoff)
     if (!command) {
       root.failCurrent(Logic.unsupportedAgentMessage(agent))
       return
@@ -469,7 +473,7 @@ Item {
     // drop the overlay history. The terminal session continues on its own.
     root.resetConversation(false)
     root.dismiss()
-    Quickshell.execDetached(launch)
+    Quickshell.execDetached(resumable ? launch : Logic.handoffLaunch(launch, handoff, handoffText))
   }
 
   FileView {

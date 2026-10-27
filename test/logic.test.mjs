@@ -46,12 +46,14 @@ for (const agent of agents) {
   assert.ok(wrapped)
   assert.equal(wrapped.join("\n").includes(nasty), false, agent + " keeps the question out of the whole command")
 
-  const tiled = Logic.tiledCommand(agent, workspace, home, "sess", false, nasty)
+  const handoff = Logic.handoffPath(stateDir)
+  const tiled = Logic.tiledCommand(agent, workspace, home, "sess", false, handoff)
   const interactive = Logic.shellWrapInteractive(workspace, tiled)
   assert.equal(interactive[2].includes("</dev/null"), false)
-  assert.ok(interactive.some(function(arg) { return arg === nasty || arg.endsWith("=" + nasty) }))
+  assert.ok(interactive.some(function(arg) { return arg.includes(handoff) }), agent + " is pointed at the handoff file")
   assert.equal(tiled.includes(home), false)
   for (const flag of flags) assert.equal(optionNames(tiled).includes(flag), false, agent + " tiled has " + flag)
+  assert.equal(Logic.tiledCommand(agent, workspace, home, "sess", false, ""), null, agent + " has no tiled command without a handoff file")
 }
 assert.equal(Logic.headlessCommand("opencode", workspace, home, "", false), null)
 
@@ -257,4 +259,31 @@ assert.equal(Logic.parseConversation("null"), null)
   const empty = Logic.parseConversation(JSON.stringify({ sessionId: id, sessionStarted: true, turns: "nope" }))
   assert.equal(empty.sessionStarted, false)
   assert.equal(empty.turns.length, 0)
+}
+
+// The tiled window never receives the conversation in its arguments.
+{
+  const secret = "my private question --dangerously-bypass-approvals-and-sandbox"
+  const handoff = Logic.handoffPath(stateDir)
+  for (const agent of agents) {
+    const cmd = Logic.tiledCommand(agent, workspace, home, "sess", false, handoff)
+    assert.equal(cmd.join("\n").includes("private question"), false)
+    assert.equal(cmd.some(function(arg) { return arg.includes(nasty) }), false)
+  }
+  assert.equal(JSON.stringify(Logic.tiledCommand("claude", workspace, home, "sess", true, "")), JSON.stringify(["claude", "--resume", "sess"]))
+  assert.equal(Logic.handoffPath(home), "")
+
+  const dir = mkdtempSync(join(tmpdir(), "ask-handoff-"))
+  try {
+    const file = join(dir, "handoff.md")
+    const launched = Logic.handoffLaunch(["sh", "-c", 'echo "[${ASK_HANDOFF-unset}]"; cat "$0"', file], file, secret)
+    assert.equal(launched.command.join("\n").includes("private question"), false, "the text is not in the arguments")
+    const run = spawnSync("sh", launched.command.slice(1), { encoding: "utf8", env: { ...process.env, ...launched.environment } })
+    assert.equal(run.status, 0)
+    assert.ok(run.stdout.includes("[unset]"), "the launched program does not inherit the text")
+    assert.ok(run.stdout.includes(secret), "the file holds the text")
+    assert.equal(statSync(file).mode & 0o077, 0, "the file is owner-only")
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 }

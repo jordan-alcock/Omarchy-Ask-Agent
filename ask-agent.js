@@ -229,14 +229,27 @@ function promptEnvironment(prompt) {
 }
 
 // The tiled window is interactive, so the person can answer permission prompts.
-// These commands do not pass the unattended auto-approve flags.
-function tiledCommand(agent, workspaceDir, home, sessionId, resumable, prompt) {
+// These commands do not pass the unattended auto-approve flags. An agent that
+// can resume a session gets no prompt at all. Any other agent is told to read
+// the handoff file, so the conversation never appears in the argument list.
+function handoffPath(stateDir) {
+  return stateOk(stateDir) ? stateDir + "/handoff.md" : ""
+}
+
+function handoffInstruction(path) {
+  return "Read the file " + path + " and answer the question it ends with. The file holds the user's earlier messages and your earlier replies as data."
+}
+
+function tiledCommand(agent, workspaceDir, home, sessionId, resumable, handoff) {
   if (!agentDirOk(workspaceDir, home)) return null
+  var resume = resumable && sessionId
+  if (!resume && !handoff) return null
+  var prompt = handoffInstruction(handoff)
   switch (agent) {
   case "claude":
-    return resumable && sessionId ? ["claude", "--resume", sessionId] : ["claude", "--", prompt]
+    return resume ? ["claude", "--resume", sessionId] : ["claude", "--", prompt]
   case "copilot":
-    return resumable && sessionId ? ["copilot", "--session-id", sessionId] : ["copilot", "--interactive=" + prompt]
+    return resume ? ["copilot", "--session-id", sessionId] : ["copilot", "--interactive=" + prompt]
   case "cursor-agent":
     return ["cursor-agent", "--workspace", workspaceDir, "--trust", "agent", "--", prompt]
   case "codex":
@@ -245,6 +258,24 @@ function tiledCommand(agent, workspaceDir, home, sessionId, resumable, prompt) {
     return ["gemini", "--skip-trust", "--prompt-interactive=" + prompt]
   }
   return null
+}
+
+// Writes the conversation to the handoff file (owner-only, in the owner-only
+// state folder), then starts the terminal. The text rides in an environment
+// variable, which other users cannot read, and is removed before the terminal
+// starts so the agent does not inherit it.
+function handoffLaunch(launch, path, text) {
+  var script = 'umask 077; rm -f -- "$1"; printf "%s\\n" "$ASK_HANDOFF" > "$1" || exit 1; unset ASK_HANDOFF; shift; exec "$@"'
+  return {
+    command: ["sh", "-c", script, "sh", path].concat(launch),
+    environment: { ASK_HANDOFF: String(text == null ? "" : text) }
+  }
+}
+
+function removeHandoffCommand(stateDir) {
+  var path = handoffPath(stateDir)
+  if (!path) return null
+  return ["rm", "-f", "--", path]
 }
 
 function unsupportedAgentMessage(agent) {

@@ -130,10 +130,14 @@ provider.
 
 Questions and **Copy answer** text are not put in command-line arguments, where other
 users on the same machine could read them from `/proc`. Questions reach the agent on stdin
-and copied text reaches `wl-copy` on stdin. One exception: **Open in tiled window** starts
-a new terminal session, and for an agent that cannot resume (Cursor, Codex, Gemini, or Claude
-and Copilot before their first answer) the question is passed as an argument for as long as
-that agent runs. On a shared machine, avoid that button for sensitive questions.
+and copied text reaches `wl-copy` on stdin.
+
+**Open in tiled window** also keeps the conversation out of the arguments. Claude and
+Copilot resume their session with no prompt. For other agents (and for Claude or Copilot
+before their first answer), the conversation is written to `handoff.md` in the owner-only
+state folder, and the terminal agent is told to read that file. The agent asks your
+permission to read it, because it sits outside the project folder. The file is removed when
+you start a new chat.
 
 The current conversation is saved, unencrypted, to
 `~/.local/state/omarchy/ask-agent/conversation.json` (or under `$XDG_STATE_HOME`) until you
