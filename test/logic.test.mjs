@@ -287,3 +287,37 @@ assert.equal(Logic.parseConversation("null"), null)
     rmSync(dir, { recursive: true, force: true })
   }
 }
+
+// Nothing that can open an image survives, in any style and wherever it sits.
+{
+  const defn = "[x]: https://evil.test/a.png\n\n"
+  const samples = [
+    defn + "see ![x] here",
+    defn + "![x][]",
+    defn + "![x][x]",
+    defn + "\\\\![x]",
+    defn + "``` a`b\n![x]\n```",
+    "~~~\n```\n![x]\n",
+    "``a`` ![x]",
+    '<img\nsrc="https://evil.test/a.png">',
+    '<IMG/src="https://evil.test/a.png">',
+    defn + "`![x]`",
+    defn + "```\n![x]\n```"
+  ]
+  for (const sample of samples) {
+    const out = Logic.displayMarkdown(sample)
+    assert.equal(out.includes("!["), false, "no image opener left in " + JSON.stringify(sample))
+    assert.equal(/<img/i.test(out.replace(/\\</g, "")), false, "no raw img tag in " + JSON.stringify(sample))
+  }
+  // Random mixes of the characters that matter.
+  const parts = ["!", "[", "]", "(", ")", "x", "\\", "`", "~", "<", ">", "img", " ", "\n", ":", "http://e.test/a"]
+  let seed = 12345
+  const next = function() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed }
+  for (let i = 0; i < 4000; i++) {
+    let text = ""
+    const len = 1 + (next() % 30)
+    for (let k = 0; k < len; k++) text += parts[next() % parts.length]
+    const out = Logic.displayMarkdown(text)
+    assert.equal(out.includes("!["), false, "fuzz: image opener in " + JSON.stringify(text))
+  }
+}

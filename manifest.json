@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.jordan-alcock.ask-agent",
   "name": "Ask agent",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "author": "jordan-alcock",
   "description": "Ask your Omarchy agent from the bar: answers in an overlay, replies, or open in a tiled window. Works with cloud models via Claude, Cursor, Codex and Copilot; local LLM support planned",
   "kinds": ["overlay", "bar-widget"],

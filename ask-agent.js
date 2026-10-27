@@ -322,24 +322,78 @@ function promptWithHistory(turns, question) {
   return header + blocks.join("\n\n") + footer
 }
 
-// Qt's markdown renderer fetches image URLs. Keep the text, drop images, and
-// escape a "<" that could open raw HTML so it shows as written (List<String>)
-// instead of being parsed. Code spans and fenced blocks are left alone.
+// Qt's markdown renderer fetches image URLs, and text pasted into a question can
+// carry one (inline, reference, or shortcut style, with the definition elsewhere).
+// So nothing is left that can open an image: every "![" gets its bracket escaped,
+// wherever it sits, code included, because a wrong guess about what is code would
+// leave a way through. A "<" that could open raw HTML is escaped too, so
+// List<String> shows as written, except inside code spans and fenced blocks,
+// which are tracked the way CommonMark defines them.
+function escapeAngles(text) {
+  return text.replace(/<(?=[A-Za-z\/!?])/g, "\\<")
+}
+
+// Escape "<" in one line, leaving a code span (a backtick run closed by a run of
+// the same length) alone. An unmatched run is plain text.
+function escapeOutsideSpans(line) {
+  var out = ""
+  var i = 0
+  var plain = ""
+  while (i < line.length) {
+    if (line.charAt(i) !== "`") {
+      plain += line.charAt(i)
+      i++
+      continue
+    }
+    var n = 0
+    while (line.charAt(i + n) === "`") n++
+    var close = -1
+    var j = i + n
+    while (j < line.length) {
+      if (line.charAt(j) !== "`") {
+        j++
+        continue
+      }
+      var m = 0
+      while (line.charAt(j + m) === "`") m++
+      if (m === n) {
+        close = j
+        break
+      }
+      j += m
+    }
+    if (close < 0) {
+      plain += line.slice(i, i + n)
+      i += n
+      continue
+    }
+    out += escapeAngles(plain) + line.slice(i, close + n)
+    plain = ""
+    i = close + n
+  }
+  return out + escapeAngles(plain)
+}
+
 function displayMarkdown(text) {
   var s = String(text == null ? "" : text)
   s = s.replace(/!\[[^\]]*\]\s*\([^)]*\)/g, "[image]")
   s = s.replace(/!\[[^\]]*\]\s*\[[^\]]*\]/g, "[image]")
-  s = s.replace(/<img\b[^>\n]*>/gi, "[image]")
-  var inFence = false
+  s = s.replace(/<img\b[^>]*>/gi, "[image]")
+  s = s.replace(/!\[/g, "!\\[")
+  var fence = null
   return s.split("\n").map(function(line) {
-    if (/^\s{0,3}(```|~~~)/.test(line)) {
-      inFence = !inFence
+    var open = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line)
+    if (fence) {
+      if (open && open[1].charAt(0) === fence.ch && open[1].length >= fence.len && open[2].trim() === "") fence = null
       return line
     }
-    if (inFence) return line
-    return line.split(/(`[^`]*`)/).map(function(part, i) {
-      return i % 2 === 1 ? part : part.replace(/<(?=[A-Za-z\/!?])/g, "\\<")
-    }).join("")
+    // A backtick fence cannot have a backtick in its info string. Otherwise it is
+    // not a fence, and the line is ordinary text.
+    if (open && !(open[1].charAt(0) === "`" && open[2].indexOf("`") >= 0)) {
+      fence = { ch: open[1].charAt(0), len: open[1].length }
+      return line
+    }
+    return escapeOutsideSpans(line)
   }).join("\n")
 }
 
