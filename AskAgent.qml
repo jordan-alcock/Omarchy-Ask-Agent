@@ -643,6 +643,8 @@ Item {
       }
     }
     onRejected: root.folderDialogOpen = false
+    // Closed by the window manager or the shell rather than by a button.
+    onVisibleChanged: if (!visible) root.folderDialogOpen = false
   }
 
   PanelWindow {
@@ -654,11 +656,18 @@ Item {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: root.folderDialogOpen ? WlrKeyboardFocus.None : WlrKeyboardFocus.Exclusive
     exclusionMode: ExclusionMode.Ignore
+    // The folder dialog is an ordinary window, and this panel sits above every
+    // window. While the dialog is up the panel takes no pointer input, so clicks
+    // reach the dialog instead of landing on the "click outside to close" area.
+    mask: root.folderDialogOpen ? noInput : null
+
+    Region { id: noInput }
 
     Rectangle {
       anchors.fill: parent
       color: root.scrim
-      opacity: 0.4
+      // No dimming while the dialog is up, so the dialog is not shown greyed out.
+      opacity: root.folderDialogOpen ? 0 : 0.4
     }
 
     MouseArea {
